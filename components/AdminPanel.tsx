@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef } from 'react';
 
 interface Task {
   id: string;
@@ -8,141 +8,113 @@ interface Task {
   createdAt: string;
 }
 
-interface AdminPanelProps {
+interface WorkerPanelProps {
   tasks: Task[];
   onUpdateTasks: (tasks: Task[]) => void;
 }
 
-export default function AdminPanel({ tasks, onUpdateTasks }: AdminPanelProps) {
-  const [emails, setEmails] = useState('');
+export default function WorkerPanel({ tasks, onUpdateTasks }: WorkerPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // বাল্ক ইমেইল এড করুন
-  const addBulkEmails = () => {
-    const emailList = emails.split('\n')
-      .map(email => email.trim())
-      .filter(email => email.includes('@'));
-    
-    if (emailList.length === 0) {
-      alert('দয়া করে সঠিক ইমেইল দিন!');
-      return;
-    }
+  // Pending টাস্কগুলো
+  const pendingTasks = tasks.filter(task => task.status === 'pending');
 
-    const newTasks = emailList.map(email => ({
-      id: Date.now() + Math.random().toString(),
-      email,
-      status: 'pending' as const,
-      photo: null,
-      createdAt: new Date().toISOString()
-    }));
-
-    onUpdateTasks([...tasks, ...newTasks]);
-    setEmails('');
-    alert(`${emailList.length}টি ইমেইল যোগ করা হয়েছে!`);
+  // টাস্ক আপডেট করুন
+  const updateTaskStatus = (taskId: string, status: 'approved' | 'rejected', photo: string | null = null) => {
+    const updatedTasks = tasks.map(task =>
+      task.id === taskId ? { ...task, status, photo } : task
+    );
+    onUpdateTasks(updatedTasks);
   };
 
-  // Approved টাস্ক এক্সপোর্ট করুন
-  const exportApproved = () => {
-    const approvedTasks = tasks.filter(task => task.status === 'approved');
-    if (approvedTasks.length === 0) {
-      alert('কোনো Approved টাস্ক নেই!');
-      return;
-    }
-
-    const exportData = approvedTasks.map(task => 
-      `${task.email} - ${task.photo ? 'Photo Uploaded' : 'No Photo'}`
-    ).join('\n');
-    
-    navigator.clipboard.writeText(exportData);
-    alert(`${approvedTasks.length}টি Approved টাস্ক কপি করা হয়েছে!`);
-  };
-
-  // টাস্ক ডিলিট করুন
-  const deleteTask = (taskId: string) => {
-    if (confirm('আপনি কি এই টাস্ক ডিলিট করতে চান?')) {
-      const updatedTasks = tasks.filter(task => task.id !== taskId);
-      onUpdateTasks(updatedTasks);
+  // ফটো আপলোড হ্যান্ডলার
+  const handlePhotoUpload = (taskId: string, file: File | null) => {
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          updateTaskStatus(taskId, 'approved', e.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  // সব টাস্ক ডিলিট করুন
-  const deleteAllTasks = () => {
-    if (confirm('আপনি কি সব টাস্ক ডিলিট করতে চান?')) {
-      onUpdateTasks([]);
+  // ফটো বাটন ক্লিক হ্যান্ডলার
+  const handlePhotoButtonClick = (taskId: string) => {
+    if (fileInputRef.current) {
+      fileInputRef.current.setAttribute('data-task-id', taskId);
+      fileInputRef.current.click();
     }
   };
 
   return (
     <div>
-      {/* ইমেইল এড ফর্ম */}
-      <div className="mb-6">
-        <textarea
-          value={emails}
-          onChange={(e) => setEmails(e.target.value)}
-          placeholder={`এক লাইনে একটি ইমেইল দিন\nউদাহরণ:\nworker1@email.com\nworker2@email.com`}
-          className="w-full p-3 border border-gray-300 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows={5}
-        />
-        <button 
-          onClick={addBulkEmails}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors"
-        >
-          ইমেইল এড করুন
-        </button>
-      </div>
+      {/* Hidden file input */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        onChange={(e) => {
+          const taskId = e.target.getAttribute('data-task-id');
+          if (taskId && e.target.files && e.target.files[0]) {
+            handlePhotoUpload(taskId, e.target.files[0]);
+          }
+        }}
+        className="hidden"
+      />
 
-      {/* Approved এক্সপোর্ট */}
-      <div className="mb-4">
-        <button 
-          onClick={exportApproved}
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors mr-2"
-        >
-          Approved লিস্ট কপি করুন
-        </button>
-        
-        <button 
-          onClick={deleteAllTasks}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors"
-        >
-          সব টাস্ক ডিলিট করুন
-        </button>
-      </div>
-
-      {/* টাস্ক স্ট্যাটাস */}
-      <div className="grid grid-cols-3 gap-2 text-center mb-6">
-        <div className="bg-yellow-100 p-2 rounded border">
-          <div className="font-bold">{tasks.filter(t => t.status === 'pending').length}</div>
-          <div className="text-sm">Pending</div>
-        </div>
-        <div className="bg-green-100 p-2 rounded border">
-          <div className="font-bold">{tasks.filter(t => t.status === 'approved').length}</div>
-          <div className="text-sm">Approved</div>
-        </div>
-        <div className="bg-red-100 p-2 rounded border">
-          <div className="font-bold">{tasks.filter(t => t.status === 'rejected').length}</div>
-          <div className="text-sm">Rejected</div>
-        </div>
-      </div>
-
-      {/* সব টাস্কের লিস্ট */}
-      <div className="max-h-60 overflow-y-auto">
-        <h3 className="font-semibold mb-2">সব টাস্ক:</h3>
-        {tasks.length === 0 ? (
-          <p className="text-gray-500 text-sm">কোনো টাস্ক নেই</p>
-        ) : (
-          tasks.map(task => (
-            <div key={task.id} className={`p-2 mb-1 rounded text-sm flex justify-between items-center ${
-              task.status === 'approved' ? 'bg-green-50' : 
-              task.status === 'rejected' ? 'bg-red-50' : 'bg-yellow-50'
-            }`}>
-              <span>{task.email}</span>
-              <button 
-                onClick={() => deleteTask(task.id)}
-                className="text-red-500 hover:text-red-700 text-xs"
+      {pendingTasks.length === 0 ? (
+        <p className="text-gray-500 text-center py-4">কোনো পেন্ডিং টাস্ক নেই</p>
+      ) : (
+        pendingTasks.map(task => (
+          <div key={task.id} className="border border-gray-200 p-4 rounded mb-3 bg-white">
+            <p className="font-medium mb-3 text-gray-800">{task.email}</p>
+            
+            <div className="flex gap-2 flex-wrap">
+              {/* ফটো আপলোড বাটন */}
+              <button
+                onClick={() => handlePhotoButtonClick(task.id)}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm transition-colors flex-1 min-w-[120px]"
               >
-                Delete
+                📷 ফটো আপলোড
+              </button>
+
+              {/* Approved বাটন */}
+              <button
+                onClick={() => updateTaskStatus(task.id, 'approved')}
+                className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded text-sm transition-colors flex-1 min-w-[100px]"
+              >
+                ✅ Approved
+              </button>
+
+              {/* Rejected বাটন */}
+              <button
+                onClick={() => updateTaskStatus(task.id, 'rejected')}
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded text-sm transition-colors flex-1 min-w-[100px]"
+              >
+                ❌ Rejected
               </button>
             </div>
-          ))
+          </div>
+        ))
+      )}
+
+      {/* Approved টাস্ক প্রিভিউ */}
+      <div className="mt-6">
+        <h3 className="font-semibold mb-2">Completed Tasks:</h3>
+        {tasks.filter(t => t.status !== 'pending').length === 0 ? (
+          <p className="text-gray-500 text-sm">কোনো কমপ্লিটেড টাস্ক নেই</p>
+        ) : (
+          tasks
+            .filter(t => t.status !== 'pending')
+            .map(task => (
+              <div key={task.id} className={`p-2 mb-1 rounded text-sm ${
+                task.status === 'approved' ? 'bg-green-50' : 'bg-red-50'
+              }`}>
+                {task.email} - {task.status} {task.photo && '📷'}
+              </div>
+            ))
         )}
       </div>
     </div>
